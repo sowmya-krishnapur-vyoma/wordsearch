@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <title>Vyoma Chandas Word Search</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Times New Roman','Noto Sans Devanagari', sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      padding: 5px 10px;
+      background: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    #logo {
+      height: 40px;
+      margin-right: 10px;
+    }
+    h3 {
+      margin: 0;
+      color: #005caa;
+      font-size: 24px;
+      flex: 1;
+      text-align: center;
+    }
+	
+	h5 {
+      text-align: center;
+      margin-top: 10px;
+      color: #005caa;
+      font-size: 18px;
+    }
+    .topbar {
+      text-align: center;
+      margin: 10px;
+    }
+    .topbar input {
+      font-size: 16px;
+      padding: 4px;
+    }
+    .main {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    #gameWrapper {
+      display: none;
+    }
+    #gameArea {
+      position: relative;
+      margin: 10px;
+    }
+    canvas {
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    button {
+      background-color: #005caa;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      margin: 4px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #003e7e;
+    }
+    #wordlist {
+      display: none;
+      margin-top: 10px;
+    }
+    #wordlist div {
+      font-weight: bold;
+      font-size: 18px;
+      margin: 2px 0;
+    }
+    #overlayMsg {
+      position: absolute;
+      top: 20%;
+      left: 50%;
+      transform: translate(-50%, -20%);
+      background: #cce5ff;
+      color: #003e7e;
+      padding: 20px;
+      border-radius: 8px;
+      font-size: 20px;
+      text-align: center;
+      z-index: 10;
+      min-width: 300px;
+    }
+    #timer {
+      display: inline-block;
+      font-size: 18px;
+      font-weight: bold;
+      color: #005caa;
+      margin-right: 8px;
+    }
+    #count {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    #instructionModal {
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translate(-50%, -20%);
+      background: #cce5ff;
+      color: #003e7e;
+      padding: 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      max-width: 400px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      display: none;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h3>Find the Chandas</h3>
+</header>
+<h5>Find the names of 5 popular Samavṛtta-s from the grid below</h5>
+<div class="topbar">
+  <span id="timer">⏳ 60s</span>
+  <input id="username" placeholder="Enter your name" />
+  <button onclick="startGame()">Start</button>
+  <button onclick="showInstructions()">Instructions</button>
+</div>
+
+<div class="main">
+  <div id="gameWrapper">
+    <div id="gameArea">
+      <canvas id="gameCanvas"></canvas>
+      <div id="overlayMsg" style="display:none;"></div>
+    </div>
+    <div>
+      <div id="count">0/4 words found</div>
+      <button onclick="toggleWordList()">Show List of Words</button>
+      <div id="wordlist"></div>
+    </div>
+  </div>
+</div>
+
+<div id="instructionModal">
+  <strong>Instructions</strong><br><br>
+  1. This is a word-grid game, you need to find a list of words which are hidden in the grid. <br>
+  2. The words can be horizontal or vertical - left to right & top to bottom. There are no diagonal or reverse words. <br>
+  3. Click on any letter to select. It changes to yellow when selected. If you click again on it, it gets deselected. <br>
+  4. You have to click on letters in correct order. Once you complete a word, it turns green. <br>
+  5. Timer on the left shows time left, Number of words found is displayed on the right. <br>
+  6. To see the list of words, click the "Show list of words" button. It displays the list of words, with the words that you have already found in green. <br><br>
+  <button onclick="hideInstructions()">Close</button>
+</div>
+
+<script>
+const gridSize = 8;
+let cellSize = 50;
+let grid = [];
+let canvas, ctx;
+let selectedCells = [];
+let foundWords = [];
+let countdown;
+let timeLeft = 30;
+
+const words = [
+  { word: "अनुष्टुप्", syllables: ["अ", "नु", "ष्टु", "प्"] },
+  { word: "इन्द्रवज्रा", syllables: ["इ", "न्द्र", "व", "ज्रा"] },
+  { word: "मालिनी", syllables: ["मा", "लि", "नी"] },
+  { word: "वंशस्थम्", syllables: ["वं", "श", "स्थ", "म्"] },
+  { word: "वसन्ततिलका", syllables: ["व", "स", "न्त", "ति", "ल", "का"] }
+];
+
+const syllablePool = [...new Set(words.flatMap(w => w.syllables))];
+
+function showInstructions() {
+  document.getElementById("instructionModal").style.display = "block";
+}
+
+function hideInstructions() {
+  document.getElementById("instructionModal").style.display = "none";
+}
+
+function toggleWordList() {
+  const wl = document.getElementById("wordlist");
+  wl.style.display = (wl.style.display === "block") ? "none" : "block";
+}
+
+function createEmptyGrid() {
+  grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(""));
+}
+
+function placeWords() {
+  for (const entry of words) {
+    const sylls = entry.syllables;
+    let placed = false, tries = 0;
+    while (!placed && tries < 100) {
+      tries++;
+      const dir = Math.random() < 0.5 ? "H" : "V";
+      const maxRow = dir === "H" ? gridSize : gridSize - sylls.length;
+      const maxCol = dir === "H" ? gridSize - sylls.length : gridSize;
+      const row = Math.floor(Math.random() * maxRow);
+      const col = Math.floor(Math.random() * maxCol);
+
+      let fits = true;
+      for (let i = 0; i < sylls.length; i++) {
+        const r = dir === "H" ? row : row + i;
+        const c = dir === "H" ? col + i : col;
+        if (grid[r][c] !== "" && grid[r][c] !== sylls[i]) {
+          fits = false;
+          break;
+        }
+      }
+
+      if (fits) {
+        for (let i = 0; i < sylls.length; i++) {
+          const r = dir === "H" ? row : row + i;
+          const c = dir === "H" ? col + i : col;
+          grid[r][c] = sylls[i];
+        }
+        placed = true;
+      }
+    }
+  }
+}
+
+function fillGrid() {
+  for (let r = 0; r < gridSize; r++) {
+    for (let c = 0; c < gridSize; c++) {
+      if (grid[r][c] === "") {
+        grid[r][c] = syllablePool[Math.floor(Math.random() * syllablePool.length)];
+      }
+    }
+  }
+}
+
+function drawGrid() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = `${cellSize / 2}px Noto Sans Devanagari`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let r = 0; r < gridSize; r++) {
+    for (let c = 0; c < gridSize; c++) {
+      const x = c * cellSize, y = r * cellSize;
+      ctx.fillStyle = "#f9f9f9";
+      ctx.fillRect(x, y, cellSize, cellSize);
+
+      if (selectedCells.some(sc => sc[0] === r && sc[1] === c)) {
+        ctx.fillStyle = "#FFDD57";
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+      if (foundWords.some(w => w.cells.some(sc => sc[0] === r && sc[1] === c))) {
+        ctx.fillStyle = "#A5D6A7";
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+
+      ctx.strokeStyle = "#333";
+      ctx.strokeRect(x, y, cellSize, cellSize);
+      ctx.fillStyle = "#000";
+      ctx.fillText(grid[r][c], x + cellSize / 2, y + cellSize / 2);
+    }
+  }
+}
+
+function startGame() {
+  foundWords = [];
+  selectedCells = [];
+  timeLeft = 30;
+  clearInterval(countdown);
+
+  document.getElementById("gameWrapper").style.display = "flex";
+  document.getElementById("wordlist").style.display = "none";
+
+  canvas = document.getElementById("gameCanvas");
+  ctx = canvas.getContext("2d");
+
+  const maxWidth = Math.min(window.innerWidth * 0.6, 400);
+  cellSize = Math.floor(maxWidth / gridSize);
+  canvas.width = cellSize * gridSize;
+  canvas.height = cellSize * gridSize;
+
+  createEmptyGrid();
+  placeWords();
+  fillGrid();
+  drawGrid();
+  updateWordList();
+  updateCount();
+
+  canvas.style.pointerEvents = "auto";
+  document.getElementById("overlayMsg").style.display = "none";
+
+  countdown = setInterval(() => {
+    timeLeft--;
+    document.getElementById("timer").innerText = `⏳ ${timeLeft}s`;
+    if (timeLeft <= 0) {
+      clearInterval(countdown);
+      endGame(false);
+    }
+  }, 1000);
+}
+
+document.getElementById("gameCanvas").addEventListener("click", function(event) {
+  if (canvas.style.pointerEvents === "none") return;
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const col = Math.floor(x / cellSize);
+  const row = Math.floor(y / cellSize);
+
+  const index = selectedCells.findIndex(sc => sc[0] === row && sc[1] === col);
+  if (index >= 0) {
+    selectedCells.splice(index, 1);
+  } else {
+    selectedCells.push([row, col]);
+  }
+
+  checkSelection();
+  drawGrid();
+});
+
+function areAdjacent(cells) {
+  for (let i = 1; i < cells.length; i++) {
+    const [r1, c1] = cells[i - 1];
+    const [r2, c2] = cells[i];
+    if (!( (Math.abs(r1 - r2) === 1 && c1 === c2) || (Math.abs(c1 - c2) === 1 && r1 === r2) )) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function checkSelection() {
+  const selectedSyllables = selectedCells.map(sc => grid[sc[0]][sc[1]]);
+  for (const entry of words) {
+    if (selectedSyllables.length !== entry.syllables.length) continue;
+    let match = true;
+    for (let i = 0; i < entry.syllables.length; i++) {
+      if (selectedSyllables[i] !== entry.syllables[i]) {
+        match = false;
+        break;
+      }
+    }
+    if (match && areAdjacent(selectedCells)) {
+      foundWords.push({ word: entry.word, cells: [...selectedCells] });
+      selectedCells = [];
+      updateWordList();
+      updateCount();
+      drawGrid();
+      if (foundWords.length === words.length) {
+        clearInterval(countdown);
+        endGame(true);
+      }
+      break;
+    }
+  }
+}
+
+function updateWordList() {
+  const html = words.map(w => {
+    const found = foundWords.some(fw => fw.word === w.word);
+    return `<div style="color:${found ? 'green' : '#000'};">${w.word}</div>`;
+  }).join("");
+  document.getElementById("wordlist").innerHTML = html;
+}
+
+function updateCount() {
+  document.getElementById("count").innerHTML = `${foundWords.length}/${words.length} words found`;
+}
+
+function endGame(success) {
+  canvas.style.pointerEvents = "none";
+  updateWordList();
+  const username = document.getElementById("username").value || "Player";
+  const score = foundWords.length * 10;
+  const timeUsed = 30 - timeLeft;
+  document.getElementById("overlayMsg").style.display = "block";
+  document.getElementById("overlayMsg").innerHTML =
+    success ?
+    `अभिनन्दनानि!<br>Great Going <strong>${username}</strong>! You Completed the Game.<br><br>
+     <span style="color:green;">Words Found: ${foundWords.length}/${words.length}</span><br>
+     <span style="color:#cc0000;">Score: ${score}</span><br>
+     <span>Time Taken: ${timeUsed}s</span><br>
+     <button onclick="location.reload()">🔄 Play Again</button>`
+    :
+    `समयः अतीतः<br>Sorry <strong>${username}</strong>, Time's up!<br><br>
+     <span style="color:green;">Words Found: ${foundWords.length}/${words.length}</span><br>
+     <span style="color:#cc0000;">Score: ${score}</span><br>
+     <span>Time Taken: ${timeUsed}s</span><br>
+     <button onclick="location.reload()">🔄 Play Again</button>`;
+}
+</script>
+</body>
+</html>
